@@ -111,10 +111,10 @@ func main() {
         if len(test_body) > 2 {
             retry_after := gjson.Get(test_body, "retry_after")
             switch {
-            case retry_after.Int() <= 500:
+            case retry_after.Int() <= 1000:
                 yellow.Println("locking again")
                 spam(gid)
-            case retry_after.Int() <= 5000:
+            case retry_after.Int() <= 10000:
                 clear()
                 blue.Println("locking soon")
                 spam(gid)
