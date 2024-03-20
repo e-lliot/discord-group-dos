@@ -16,9 +16,9 @@ import (
 
 
 var (
-    variable string
-    endpoint string
-    gid string
+    variable   string
+    endpoint   string
+    gid        string
     TOKEN_AUTH string
     logo = `
 M""""""'YMM  oo                                           8P 
@@ -42,28 +42,36 @@ M  MMMMM  M M  MMMMM  M MMMMMMM.  M
 M  MMMM' .M M. 'MMM' .M M. .MMM'  M 
 M       .MM MMb     dMM Mb.     .dM 
 MMMMMMMMMMM MMMMMMMMMMM MMMMMMMMMMM 
-`
-blue = color.New(color.Bold, color.FgHiBlue)
-red = color.New(color.Bold, color.FgHiRed)
-yellow = color.New(color.Bold, color.FgHiYellow)
-green = color.New(color.Bold, color.FgHiGreen)
+    `
+    blue   = color.New(color.Bold, color.FgHiBlue)
+    red    = color.New(color.Bold, color.FgHiRed)
+    yellow = color.New(color.Bold, color.FgHiYellow)
+    green  = color.New(color.Bold, color.FgHiGreen)
 )
 
+func error_nil(err error) {
+    if err != nil {
+        panic(err)
+    }
+}
 
 func main() {
     file, err := os.Open("token.txt")
     if err != nil {
-        fmt.Println(err)
+        red.Println("ERROR: No token.txt file / read permission denied")
+        return
     }
     defer file.Close()
     scanner := bufio.NewScanner(file)
     for scanner.Scan() {
         TOKEN_AUTH = scanner.Text()
     }
- 
-    if err := scanner.Err(); err != nil {
-        fmt.Println(err)
+
+    if scanner.Err() != nil {
+        red.Println("ERROR: token.txt read error")
+        return
     }
+
     clear()
     red.Println(logo)
     slow_print("by elliot")
@@ -73,14 +81,14 @@ func main() {
     blue.Print("group id: ")
     fmt.Scan(&gid)
     test_body, test_code := make_request(gid)
-    if test_code == 401 {
-
-        red.Println("ERROR BAD TOKEN")
+    switch test_code {
+    case 401:
+        red.Println("ERROR: Bad token")
         return
+    case 403:
+        red.Println("ERROR: Not in group")
     }
-    if test_code == 403 {
-        red.Println("ERROR NOT IN GROUP")
-    }
+
     if len(test_body) > 2 && gjson.Get(test_body, "message").String() == "You are being rate limited." {
         if gjson.Get(test_body, "retry_after").Int() <= 500 {
             green.Println("already locked")
@@ -107,28 +115,24 @@ func main() {
         test_body, _ := make_request(gid)
         clear()
         if len(test_body) > 2 {
-            if gjson.Get(test_body, "retry_after").Int() <= 500 {
+            retry_after := gjson.Get(test_body, "retry_after")
+            switch {
+            case retry_after.Int() <= 1000:
                 yellow.Println("locking again")
                 spam(gid)
-            }else if gjson.Get(test_body, "retry_after").Int() <= 5000 {
+            case retry_after.Int() <= 3000:
                 clear()
                 blue.Println("locking soon")
-                spam(gid)
-            }else if gjson.Get(test_body, "message").String() != "You are being rate limited." {
-                yellow.Println("locking again")
-                spam(gid)
-                green.Println("locked")
-            }else {
+            case retry_after.String() != "You are being rate limited.":
                 green.Println("locked")
                 blue.Print("remaining time: ")
-                fmt.Println(gjson.Get(test_body, "retry_after").String())
+                fmt.Println(retry_after.String())              
             }
         }else{
             spam(gid)
         }
     }
 }
-
 
 func slow_print(s string){
     for c := 0; c < len(s);c++ {
@@ -138,7 +142,6 @@ func slow_print(s string){
         sleep(70)
     }
 }
-
 
 func clear() {
     cmd := exec.Command("clear")
@@ -153,7 +156,6 @@ func sleep(t time.Duration){
     time.Sleep(t * time.Millisecond)
 }
 
-
 func make_request(gid string) (string, int) {
     gid = fmt.Sprintf(gid)
     httpputturl := "https://discord.com/api/v7/channels/" + gid + "/recipients/1337"
@@ -161,9 +163,7 @@ func make_request(gid string) (string, int) {
     empty, _ := json.Marshal("")
 
     request, err := http.NewRequest(http.MethodPut, httpputturl, bytes.NewBuffer(empty))
-    if err != nil {
-        panic(err)
-    }
+    error_nil(err)
 
     request.Header.Set("Content-Type", "application/json; charset=UTF-8")
     request.Header.Set("authorization", TOKEN_AUTH)
@@ -172,9 +172,8 @@ func make_request(gid string) (string, int) {
     client := &http.Client{}
 
     response, err := client.Do(request)
-    if err != nil {
-        panic(err)
-    }
+    error_nil(err)
+
     defer response.Body.Close()
     body_bytes, _ := ioutil.ReadAll(response.Body)
     body := string(body_bytes)
@@ -183,10 +182,9 @@ func make_request(gid string) (string, int) {
 }
 
 func spam(gid string) {
-    for i := 1; i <= 50; i++ {
+    for i := 1; i <= 100; i++ {
         go make_request(gid)
     }
-    sleep(4600)
+    sleep(1000)
     return
 }
-
