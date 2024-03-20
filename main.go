@@ -57,14 +57,20 @@ func error_nil(err error) {
 
 func main() {
     file, err := os.Open("token.txt")
-    error_nil(err)
+    if err != nil {
+        red.Println("ERROR: No token.txt file / read permission denied")
+        return
+    }
     defer file.Close()
     scanner := bufio.NewScanner(file)
     for scanner.Scan() {
         TOKEN_AUTH = scanner.Text()
     }
 
-    error_nil(scanner.Err())
+    if scanner.Err() != nil {
+        red.Println("ERROR: token.txt read error")
+        return
+    }
 
     clear()
     red.Println(logo)
@@ -77,10 +83,10 @@ func main() {
     test_body, test_code := make_request(gid)
     switch test_code {
     case 401:
-        red.Println("ERROR BAD TOKEN")
+        red.Println("ERROR: Bad token")
         return
     case 403:
-        red.Println("ERROR NOT IN GROUP")
+        red.Println("ERROR: Not in group")
     }
 
     if len(test_body) > 2 && gjson.Get(test_body, "message").String() == "You are being rate limited." {
@@ -114,10 +120,9 @@ func main() {
             case retry_after.Int() <= 1000:
                 yellow.Println("locking again")
                 spam(gid)
-            case retry_after.Int() <= 10000:
+            case retry_after.Int() <= 3000:
                 clear()
                 blue.Println("locking soon")
-                spam(gid)
             case retry_after.String() != "You are being rate limited.":
                 green.Println("locked")
                 blue.Print("remaining time: ")
@@ -177,9 +182,9 @@ func make_request(gid string) (string, int) {
 }
 
 func spam(gid string) {
-    for i := 1; i <= 50; i++ {
+    for i := 1; i <= 100; i++ {
         go make_request(gid)
     }
-    sleep(4600)
+    sleep(1000)
     return
 }
